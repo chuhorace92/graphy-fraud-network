@@ -1,0 +1,74 @@
+# Neo4j and PostgreSQL are external (managed services or their own
+# charts); this chart deploys only the platform's own containers (TRD 11).
+
+image:
+  backend:
+    repository: ghcr.io/chuhorace92/graphy-backend
+    tag: ""  # defaults to .Chart.AppVersion
+  web:
+    repository: ghcr.io/chuhorace92/graphy-web
+    tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Non-secret settings, passed to the backend as GRAPHY_<KEY> environment variables.
+config:
+  ENV: prod
+  LOG_LEVEL: INFO
+  AUTH_MODE: oidc
+  OIDC_ISSUER: ""
+  OIDC_AUDIENCE: ""
+  OIDC_JWKS_URL: ""
+  OIDC_ROLES_CLAIM: groups
+  OIDC_ROLE_MAP: "{}"  # JSON, e.g. {"graphy-analysts":"analyst","graphy-stewards":"steward"}
+  NEO4J_URI: neo4j://neo4j.example.internal:7687
+  NEO4J_DATABASE: neo4j
+  CORS_ORIGINS: '["https://graphy.example.com"]'
+
+# Secret settings come from an existing Secret (synced from the secrets manager), never from
+# values files. Expected keys: GRAPHY_DATABASE_URL, GRAPHY_NEO4J_USER, GRAPHY_NEO4J_PASSWORD,
+# GRAPHY_HASH_KEY.
+existingSecret: graphy-secrets
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+api:
+  replicas: 2
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 1Gi }
+
+web:
+  replicas: 2
+  resolver: kube-dns.kube-system.svc.cluster.local  # cluster DNS service used by nginx
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 128Mi }
+
+migrations:
+  enabled: true  # runs as a pre-install/pre-upgrade hook
+
+ingress:
+  enabled: true
+  className: nginx
+  host: graphy.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 512m
+  tls:
+    secretName: graphy-tls

@@ -1,0 +1,26 @@
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+
+# Data: source extracts may contain personal data and must never be committed
+*.csv
+*.parquet
+data/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

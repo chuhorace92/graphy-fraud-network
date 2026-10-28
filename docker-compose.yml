@@ -1,0 +1,89 @@
+# Local development stack. Production runs on Kubernetes with managed Neo4j/PostgreSQL
+# (deploy/helm). Passwords here are dev-only defaults; override them in .env.
+
+x-backend: &backend
+  build: ./backend
+  image: graphy-backend:dev
+  env_file:
+    - path: .env
+      required: false
+  environment: &backend-env
+    GRAPHY_ENV: dev
+    GRAPHY_DATABASE_URL: postgresql+psycopg://graphy:${POSTGRES_PASSWORD:-graphy}@postgres:5432/graphy
+    GRAPHY_NEO4J_URI: bolt://neo4j:7687
+    GRAPHY_NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphy-dev-password}
+    GRAPHY_CORS_ORIGINS: '["http://localhost:5173","http://localhost:8080"]'
+  depends_on:
+    init:
+      condition: service_completed_successfully
+
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graphy-dev-password}
+      NEO4J_PLUGINS: '["graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: gds.*
+      NEO4J_server_memory_heap_max__size: 2G
+      NEO4J_server_memory_pagecache_size: 1G
+    ports:
+      - "7474:7474"  # browser UI
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: graphy
+      POSTGRES_USER: graphy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-graphy}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graphy -d graphy"]
+      interval: 5s
+      retries: 20
+
+  # One-shot: run migrations, apply the Neo4j schema.
+  init:
+    <<: *backend
+    command: python -m graphy.scripts.init_db
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *backend
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/live', timeout=2)"]
+      interval: 10s
+      retries: 10
+
+  web:
+    build: ./frontend
+    image: graphy-web:dev
+    environment:
+      API_UPSTREAM: http://api:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  neo4j-data:
+  postgres-data:
