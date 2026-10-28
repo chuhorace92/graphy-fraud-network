@@ -27,9 +27,9 @@ Auditor = Annotated[User, Depends(can_audit)]
 Admin = Annotated[User, Depends(can_ingest)]
 
 
-def not_yet(requirement: str, phase: str) -> NoReturn:
-    """Endpoints in the API contract whose implementation lands in a later delivery phase."""
+def not_yet(requirement: str) -> NoReturn:
+    """Endpoints in the API contract that are planned but not built yet."""
     raise HTTPException(
         status.HTTP_501_NOT_IMPLEMENTED,
-        f"{requirement} is scheduled for {phase} (BRD section 12)",
+        f"{requirement} is planned but not implemented yet",
     )

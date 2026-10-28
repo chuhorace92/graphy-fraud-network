@@ -1,12 +1,36 @@
 # Graphy
 
-Find hidden relationships between people, companies and families, and flag the clusters that
-look abnormal. Three modules: **entity resolution**, **graph analytics** and **network
-visualization**, as laid out in a business requirements and technical design spec (BRD / TRD).
+[![ci](https://github.com/chuhorace92/graphy-fraud-network/actions/workflows/ci.yml/badge.svg)](https://github.com/chuhorace92/graphy-fraud-network/actions/workflows/ci.yml)
 
-This repository is the **Phase 1 foundation**: ingestion, the canonical graph model, Level 1
-resolution and the investigation canvas with drill-down, plus the build and deployment
-scaffolding for every later phase.
+Graphy finds hidden relationships between people, companies and providers in insurance claims
+data, and flags the networks that look abnormal, such as one attorney, clinic and body shop
+turning up on claim after claim. Investigators work each flagged network as a case.
+
+It has four parts:
+
+- **Entity resolution** decides which records are the same person, company or vehicle, with
+  adjustable per-attribute scoring and a review queue for borderline pairs.
+- **Network analytics** scores connected networks 0-100 against a library of editable fraud
+  rules, and explains every indicator in plain language.
+- **Network visualization** is an interactive investigation canvas with drill-down.
+- **Case management** covers tasks, notes, documents, claims and a closing report, with an
+  optional AI-drafted summary.
+
+The stack is FastAPI, PostgreSQL and Neo4j on the back end, React and TypeScript on the front
+end, with Docker Compose for local use and a Helm chart for Kubernetes. All demo data is
+synthetic.
+
+![Case queue: networks ranked by fraud score](docs/screenshots/case-queue.png)
+
+| | |
+|---|---|
+| ![The investigation canvas](docs/screenshots/investigate.png) | ![Why a case was flagged](docs/screenshots/case-indicators.png) |
+| **Investigate:** a network on the canvas, with the shared details that connect it | **Case indicators:** each rule, why it counts, and the data it matched |
+
+![Resolution controls](docs/screenshots/resolution.png)
+
+*Resolution controls: how strongly each detail counts, how it is compared, and where review and
+automatic merging start.*
 
 ## Run it
 
@@ -65,11 +89,11 @@ make test
 
 ```
 backend/                 Python 3.12, FastAPI (uv-managed)
-  graphy/catalog.py        attribute catalog (BRD 9.1): link strength, hub thresholds, sensitivity
+  graphy/catalog.py        attribute catalog: link strength, hub thresholds, sensitivity
   graphy/ingestion/        normalizers and the batch loader (idempotent MERGE into Neo4j)
-  graphy/resolution/       Level 1 resolution (scoring.py: pair scoring; deterministic.py: merging,
+  graphy/resolution/       record resolution (scoring.py: pair scoring; deterministic.py: merging,
                            the review queue, probable aliases, preview), SHARES and role links
-  graphy/api/v1/           REST API, one module per area in TRD section 7
+  graphy/api/v1/           REST API, one module per area
   graphy/services/jobs.py  background jobs, run in the API process; every job writes a job_run row
   graphy/scripts/          init_db (migrations + graph schema), seed_demo (synthetic data)
   migrations/              Alembic (PostgreSQL: rule sets, overrides, jobs, audit)
@@ -83,7 +107,7 @@ One backend image serves both roles; the container command picks API or migratio
 
 ## Ingesting data
 
-Phase 1 accepts one canonical CSV layout, one attribute value per row:
+Ingestion accepts one canonical CSV layout, one attribute value per row:
 
 ```csv
 source_key,entity_type,attr_type,value,first_seen,last_seen
@@ -208,26 +232,26 @@ claim and never link entities; the Inspector shows them as a claim summary.
 shop across every claim, the same people rotating through the roles, and aliases of ring
 members under new tax IDs and emails.
 
-## What works, and what is stubbed
+## Status
 
 | Area | State |
 |---|---|
-| Ingestion, normalization, attribute versions (X-1, ER-10, NV-4) | Working |
-| Secret attributes stored only as keyed hashes, masked in UI (AC-5) | Working |
-| Level 1 resolution: per-attribute scoring, name parts, merge / review thresholds, aliases, overrides, known-different, size cap, preview (ER-1, 4, 6, 7, 8) | Working |
-| SHARES links with hub detection (AC-3, AC-4) | Working |
-| Rule-set versioning: draft, publish, rollback (ER-5) | Working |
-| Neighborhood, path, drill-down, search, explain APIs (NV-3..6, GA-10) | Working |
+| Ingestion, normalization, attribute versions | Working |
+| Secret attributes stored only as keyed hashes, masked in the UI | Working |
+| Resolution: per-attribute scoring, name parts, merge and review thresholds, aliases, overrides, known-different, size cap | Working |
+| Preview impact: simulate a rule change on today's data before publishing | Working |
+| Shared-detail links with hub detection | Working |
+| Rule-set versioning: draft, publish, rollback | Working |
+| Neighborhood, path, drill-down, search and explain APIs | Working |
 | Investigation canvas, attribute panel, edge explanations | Working |
-| Append-only audit log, role checks, OIDC (X-3, X-5) | Working; IdP sign-in in the UI is Phase 4 |
-| Review queue, filled by the scorer | Working |
-| Probabilistic matching with Splink (statistical match weights) | Not started; the scorer uses explicit, adjustable points |
-| Community detection, outlier scoring, analytics runs (GA-3..6) | Phase 2; endpoints return 501 |
-| Level 2 households and company groups (ER-3) | Phase 3; canvas already nests groups |
-| Simulation before publish (ER-4) | Working: Preview impact on the Resolution page |
+| Case management, rule library, closing report, optional AI drafting | Working |
+| Append-only audit log, role checks, OIDC on the API | Working; sign-in from the UI is planned |
+| Probabilistic matching with Splink (statistical match weights) | Planned; the scorer uses explicit, adjustable points |
+| Community detection and outlier scoring runs | Planned; the endpoints return `501` |
+| Household and company grouping above resolved entities | Planned; the canvas already nests groups |
 
-Endpoints for later phases already exist in the API contract and return `501` naming their
-requirement and phase, so the front end can be built against the final shape.
+Planned features already exist in the API contract and return `501` with the name of the missing
+capability, so the front end can be built against the final shape.
 
 Known gaps to close before production:
 
@@ -236,8 +260,8 @@ Known gaps to close before production:
 - Multi-attribute deterministic rules are skipped and reported in the job counts.
 - The UI has no sign-in yet; it works against `GRAPHY_AUTH_MODE=dev`, which the backend
   refuses to start with in staging or production.
-- yFiles vs Cytoscape (TRD D1) is open. The UI only talks to `GraphView`, so a yFiles
-  implementation replaces `CytoscapeGraphView` without touching the pages.
+- The graph renderer is Cytoscape. The UI only talks to the `GraphView` interface, so another
+  renderer (yFiles, for example) can replace `CytoscapeGraphView` without touching the pages.
 
 ## Deploying
 
@@ -249,7 +273,7 @@ helm upgrade --install graphy deploy/helm/graphy -n graphy \
 
 Secrets come from the Secret named by `existingSecret` (sync it from your secrets manager);
 the keys it must hold are listed in `values.yaml`. Migrations run as a pre-install and
-pre-upgrade hook. Neo4j (Enterprise, three-node cluster in production per the TRD)
+pre-upgrade hook. Neo4j (a three-node cluster in production)
 and PostgreSQL are external.
 
 ## License

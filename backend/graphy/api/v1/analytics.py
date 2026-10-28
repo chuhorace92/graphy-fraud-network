@@ -143,12 +143,12 @@ async def delete_draft(rule_pk: uuid.UUID, pg: Pg, user: Detector) -> Response:
 
 @router.post("/runs", status_code=202)
 async def start_run(_: Detector) -> None:
-    not_yet("Analytics runs: community detection and outlier scoring (GA-3..GA-6)", "Phase 2")
+    not_yet("Analytics runs (community detection and outlier scoring)")
 
 
 @router.get("/runs/{run_id}")
 async def get_run(run_id: uuid.UUID, _: Reader) -> None:
-    not_yet("Analytics run history (GA-6)", "Phase 2")
+    not_yet("Analytics run history")
 
 
 @router.get("/clusters", response_model=list[ClusterOut])

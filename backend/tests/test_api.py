@@ -46,11 +46,11 @@ def test_read_only_cannot_create_rule_sets(client: TestClient) -> None:
     assert r.status_code == 403
 
 
-def test_later_phase_endpoints_say_so(client: TestClient) -> None:
+def test_planned_endpoints_say_so(client: TestClient) -> None:
     as_user(Role.DETECTION_ANALYST)
     r = client.post("/api/v1/analytics/runs")
     assert r.status_code == 501
-    assert "Phase 2" in r.json()["detail"]
+    assert "not implemented yet" in r.json()["detail"]
 
 
 def test_openapi_lists_contract(client: TestClient) -> None:

@@ -1,4 +1,4 @@
-# Lint, type-check and test on every pull request; build images on main (TRD 11, CI/CD).
+# Lint, type-check and test on every pull request and on main; image builds are verified, not published.
 name: ci
 
 on:
